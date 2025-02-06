@@ -24,13 +24,13 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.core import QgsProject, QgsVectorLayer
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .spatial_query_tool_dialog import SpatialQueryToolDialog
 import os.path
-
 
 class SpatialQueryTool:
     """QGIS Plugin Implementation."""
@@ -189,6 +189,8 @@ class SpatialQueryTool:
             self.first_start = False
             self.dlg = SpatialQueryToolDialog()
 
+        self.populate_layer_combobox()
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -198,3 +200,11 @@ class SpatialQueryTool:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             pass
+    
+    def populate_layer_combobox(self):
+        """Fill drop-down list with vector layers containing only point geometry"""
+        layers = QgsProject.instance().mapLayers().values()
+
+        for layer in layers:
+            if isinstance(layer, QgsVectorLayer) and layer.geometryType() == 0:  # 0 means points
+                self.dlg.comboBox.addItem(layer.name())
