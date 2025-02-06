@@ -27,6 +27,8 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform
 from qgis.gui import QgsMapToolEmitPoint
 
+import requests
+
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
@@ -237,7 +239,37 @@ class SpatialQueryTool:
         self.dlg.label_longitude.setText(f"Longitude: {lon}")
         self.dlg.label_latitude.setText(f"Latitude: {lat}")
 
+        # l'API de géocodage inverse
+        address = self.get_address_from_api(lat, lon)
+        self.dlg.label_address.setText(f"Adresse : {address}")
+
+    def get_address_from_api(self, lat, lon):
+        """ Make a request to the GeoPlatform API to obtain the nearest address """
+        url = f"https://data.geopf.fr/geocodage/reverse?lat={lat}&lon={lon}&type=housenumber&limit=1"
+
+        try:
+            response = requests.get(url, timeout=5)
+            data = response.json()
+
+            if "features" in data and len(data["features"]) > 0:
+                props = data["features"][0]["properties"]
+                num = props.get("housenumber", "N/A")
+                street_type = props.get("street_type", "")
+                street = props.get("street", "Rue inconnue")
+                insee = props.get("postcode", "N/A")  # Code INSEE
+                city = props.get("city", "Ville inconnue")
+
+                # Build formatted address
+                address = f"{num} {street_type} {street}, {insee}, {city}"
+                return address
+            else:
+                return "Adresse introuvable"
+
+        except requests.exceptions.RequestException as e:
+            return "Erreur de connexion"
+
     def reset_ui(self):
         self.dlg.comboBox.clear()
         self.dlg.label_longitude.setText("Longitude: -")
         self.dlg.label_latitude.setText("Latitude: -")
+        self.dlg.label_address.setText("Adresse: -")
