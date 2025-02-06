@@ -1,0 +1,47 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.# Mandatory items:
+
+[general]
+name=Spatial Query Tool
+qgisMinimumVersion=3.0
+description=A tool for interacting with vector layers on the map, extracting coordinates, and analyzing nearby features.
+version=0.1
+author=LIN Qiuling
+email=qiulinglin00@gmail.com
+
+about=This plugin provides a set of tools for interacting with vector layers in QGIS. It allows users to select vector layers with point geometries, click on the map to get coordinates in WGS 84 (EPSG:4326) format, and display the nearest address using the BAN (Base Adresse Nationale) database. Additionally, users can input a distance to find features within a specified radius and visualize a buffer zone around the clicked point. This plugin requires QGIS 3.x and Python with PyQGIS. It is designed to assist in spatial analysis tasks by providing easy access to geographic information directly from the map canvas.
+
+tracker=https://github.com/lin0qlin/Qplugin_SpatialQueryTool/issues
+repository=https://github.com/lin0qlin/Qplugin_SpatialQueryTool
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=python
+
+homepage=https://github.com/lin0qlin/Qplugin_SpatialQueryTool/blob/main/README.md
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+
