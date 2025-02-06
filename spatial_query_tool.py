@@ -24,7 +24,8 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsVectorLayer
+from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform
+from qgis.gui import QgsMapToolEmitPoint
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -47,6 +48,11 @@ class SpatialQueryTool:
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        self.canvas = iface.mapCanvas()
+
+        self.dlg = None
+        self.pointTool = None
+
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -163,7 +169,7 @@ class SpatialQueryTool:
         icon_path = ':/plugins/spatial_query_tool/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u''),
+            text=self.tr(u'Spatial Query Tool'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -189,7 +195,13 @@ class SpatialQueryTool:
             self.first_start = False
             self.dlg = SpatialQueryToolDialog()
 
+        self.reset_ui()
+
         self.populate_layer_combobox()
+
+        self.pointTool = QgsMapToolEmitPoint(self.canvas)
+        self.pointTool.canvasClicked.connect(self.displayPoint)
+        self.canvas.setMapTool(self.pointTool)
 
         # show the dialog
         self.dlg.show()
@@ -208,3 +220,24 @@ class SpatialQueryTool:
         for layer in layers:
             if isinstance(layer, QgsVectorLayer) and layer.geometryType() == 0:  # 0 means points
                 self.dlg.comboBox.addItem(layer.name())
+
+    def displayPoint(self, point, button):
+        """ Get the coordinates of the clicked position and convert to EPSG:4326 """
+
+        # Projection transform
+        crs_src = self.iface.mapCanvas().mapSettings().destinationCrs()  # Get current coordinate system
+        crs_dest = QgsCoordinateReferenceSystem(4326)  # WGS 84
+        transform = QgsCoordinateTransform(crs_src, crs_dest, QgsProject.instance())
+
+        transformed_point = transform.transform(point)
+
+        lon = round(transformed_point.x(), 5)
+        lat = round(transformed_point.y(), 5)
+
+        self.dlg.label_longitude.setText(f"Longitude: {lon}")
+        self.dlg.label_latitude.setText(f"Latitude: {lat}")
+
+    def reset_ui(self):
+        self.dlg.comboBox.clear()
+        self.dlg.label_longitude.setText("Longitude: -")
+        self.dlg.label_latitude.setText("Latitude: -")
