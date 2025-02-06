@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/spatial_query_tool" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
