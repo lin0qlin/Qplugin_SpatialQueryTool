@@ -257,8 +257,20 @@ class SpatialQueryTool:
                 "Erreur", "La distance doit être un entier positif.", level=2, duration=5)
             return
         
+        # Convert click points to EPSG:3857 (in meters)
+        crs_src = self.iface.mapCanvas().mapSettings().destinationCrs()
+        crs_3857 = QgsCoordinateReferenceSystem(3857)  # EPSG:3857
+        transform_to_3857 = QgsCoordinateTransform(crs_src, crs_3857, QgsProject.instance())
+        point_3857 = transform_to_3857.transform(point)
+
         # Generate Buffer
-        buffer_geom = QgsGeometry.fromPointXY(transformed_point).buffer(distance, 10)
+        buffer_geom = QgsGeometry.fromPointXY(point_3857).buffer(distance, 10)
+
+        # Convert buffer to EPSG:4326
+        crs_4326 = QgsCoordinateReferenceSystem(4326)  # WGS 84
+        transform_to_4326 = QgsCoordinateTransform(crs_3857, crs_4326, QgsProject.instance())
+        buffer_geom_4326 = QgsGeometry(buffer_geom)
+        buffer_geom_4326.transform(transform_to_4326)
 
         # Get selected layers
         layer_name = self.dlg.comboBox.currentText()
@@ -268,7 +280,7 @@ class SpatialQueryTool:
         # Iterate over the layers and compute the intersection
         count = 0
         for feature in layer.getFeatures():
-            if feature.geometry().intersects(buffer_geom):
+            if feature.geometry().intersects(buffer_geom_4326):
                 count += 1
 
         self.dlg.label_objets.setText(f"objets trouvés : {count}")
