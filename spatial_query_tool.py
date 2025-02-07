@@ -22,15 +22,18 @@
  ***************************************************************************/
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QAction
+from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry, QgsFeature
+from qgis.gui import QgsMapToolEmitPoint
+
+import requests
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .spatial_query_tool_dialog import SpatialQueryToolDialog
 import os.path
-
 
 class SpatialQueryTool:
     """QGIS Plugin Implementation."""
@@ -47,6 +50,11 @@ class SpatialQueryTool:
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        self.canvas = iface.mapCanvas()
+
+        self.dlg = None
+        self.pointTool = None
+
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -163,7 +171,7 @@ class SpatialQueryTool:
         icon_path = ':/plugins/spatial_query_tool/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u''),
+            text=self.tr(u'Spatial Query Tool'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -189,6 +197,14 @@ class SpatialQueryTool:
             self.first_start = False
             self.dlg = SpatialQueryToolDialog()
 
+        self.reset_ui()
+
+        self.populate_layer_combobox()
+
+        self.pointTool = QgsMapToolEmitPoint(self.canvas)
+        self.pointTool.canvasClicked.connect(self.displayPoint)
+        self.canvas.setMapTool(self.pointTool)
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -198,3 +214,159 @@ class SpatialQueryTool:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             pass
+    
+    def populate_layer_combobox(self):
+        """Fill drop-down list with vector layers containing only point geometry"""
+        layers = QgsProject.instance().mapLayers().values()
+
+        for layer in layers:
+            if isinstance(layer, QgsVectorLayer) and layer.geometryType() == 0:  # 0 means points
+                self.dlg.comboBox.addItem(layer.name())
+
+    def displayPoint(self, point, button):
+        """ Get the coordinates of the clicked position and convert to EPSG:4326 """
+
+        # Projection transform
+        crs_src = self.iface.mapCanvas().mapSettings().destinationCrs()  # Get current coordinate system
+        crs_dest = QgsCoordinateReferenceSystem(4326)  # WGS 84
+        transform = QgsCoordinateTransform(crs_src, crs_dest, QgsProject.instance())
+
+        transformed_point = transform.transform(point)
+
+        lon = round(transformed_point.x(), 5)
+        lat = round(transformed_point.y(), 5)
+
+        self.dlg.label_longitude.setText(f"Longitude: {lon}")
+        self.dlg.label_latitude.setText(f"Latitude: {lat}")
+
+        # l'API de géocodage inverse
+        address = self.get_address_from_api(lat, lon)
+        self.dlg.label_address.setText(f"Adresse : {address}")
+
+        #============= get the number of POI around the clicked point =========================
+        distance_text = self.dlg.lineEdit_distance.text()
+        try:
+            # Verify that the input is a positive integer
+            distance = int(distance_text)
+            if distance <= 0:
+                raise ValueError
+        except ValueError:
+            # Displaying Error Messages in the QGIS Main Window
+            self.iface.messageBar().pushMessage(
+                "Erreur", "La distance doit être un entier positif.", level=2, duration=5)
+            return
+        
+        # Convert click points to EPSG:3857 (in meters)
+        crs_src = self.iface.mapCanvas().mapSettings().destinationCrs()
+        crs_3857 = QgsCoordinateReferenceSystem(3857)  # EPSG:3857
+        transform_to_3857 = QgsCoordinateTransform(crs_src, crs_3857, QgsProject.instance())
+        point_3857 = transform_to_3857.transform(point)
+
+        # Generate Buffer
+        buffer_geom = QgsGeometry.fromPointXY(point_3857).buffer(distance, 10)
+
+        # Convert buffer to EPSG:4326
+        crs_4326 = QgsCoordinateReferenceSystem(4326)  # WGS 84
+        transform_to_4326 = QgsCoordinateTransform(crs_3857, crs_4326, QgsProject.instance())
+        buffer_geom_4326 = QgsGeometry(buffer_geom)
+        buffer_geom_4326.transform(transform_to_4326)
+
+        # Get selected layers
+        layer_name = self.dlg.comboBox.currentText()
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        layer = layers[0]
+
+        # Iterate over the layers and compute the intersection
+        count = 0
+        for feature in layer.getFeatures():
+            if feature.geometry().intersects(buffer_geom_4326):
+                count += 1
+
+        self.dlg.label_objets.setText(f"objets trouvés : {count}")
+
+        #========================= Drawing Buffer ===================================
+        # Getting Temporary Layers
+        layer_name = "Buffer"
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        if not layers:
+            temp_layer = QgsVectorLayer("Polygon?crs=EPSG:3857", layer_name, "memory")
+            QgsProject.instance().addMapLayer(temp_layer)
+        else:
+            temp_layer = layers[0]
+
+        # Empty the elements in the layer
+        temp_layer.startEditing()
+        temp_layer.dataProvider().truncate()
+
+        # Adding new buffer features
+        feature = QgsFeature()
+        feature.setGeometry(buffer_geom)
+        temp_layer.dataProvider().addFeatures([feature])
+        temp_layer.commitChanges()
+
+        # Set the layer style
+        symbol = temp_layer.renderer().symbol()
+        symbol_layer = symbol.symbolLayer(0)
+        symbol_layer.setBrushStyle(0)  # transparent fill
+        symbol_layer.setStrokeColor(QColor("#000000"))  # black
+        symbol_layer.setStrokeWidth(0.3)  # broder width
+
+        # Display the buffer layer on the map
+        temp_layer.triggerRepaint()
+        
+        #====================== Drawing clicked point ===================================
+        # same as drawing buffer
+        point_layer_name = "Clicked_Point"
+        point_layers = QgsProject.instance().mapLayersByName(point_layer_name)
+
+        if not point_layers:
+            point_layer = QgsVectorLayer("Point?crs=EPSG:3857", point_layer_name, "memory")
+            QgsProject.instance().addMapLayer(point_layer)
+        else:
+            point_layer = point_layers[0]
+
+        point_layer.startEditing()
+        point_layer.dataProvider().truncate()
+
+        point_feature = QgsFeature()
+        point_feature.setGeometry(QgsGeometry.fromPointXY(point_3857))
+        point_layer.dataProvider().addFeatures([point_feature])
+        point_layer.commitChanges()
+
+        point_symbol = point_layer.renderer().symbol()
+        point_symbol.setColor(QColor("#FF0000"))  # red fill
+        point_symbol.symbolLayer(0).setStrokeWidth(0)  # no border
+
+        point_layer.triggerRepaint()
+
+
+    def get_address_from_api(self, lat, lon):
+        """ Make a request to the GeoPlatform API to obtain the nearest address """
+        url = f"https://data.geopf.fr/geocodage/reverse?lat={lat}&lon={lon}&type=housenumber&limit=1"
+
+        try:
+            response = requests.get(url, timeout=5)
+            data = response.json()
+
+            if "features" in data and len(data["features"]) > 0:
+                props = data["features"][0]["properties"]
+                num_type_street = props.get("name", "N/A")
+                insee = props.get("citycode", "N/A")  # Code INSEE
+                city = props.get("city", "Ville inconnue")
+
+                # formatted address
+                address = f"{num_type_street}, {insee}, {city}"
+                return address
+            else:
+                return "Adresse introuvable"
+
+        except requests.exceptions.RequestException as e:
+            return "Erreur de connexion"
+
+    def reset_ui(self):
+        self.dlg.comboBox.clear()
+        self.dlg.label_longitude.setText("Longitude: -")
+        self.dlg.label_latitude.setText("Latitude: -")
+        self.dlg.label_address.setText("Adresse: -")
+        self.dlg.lineEdit_distance.setText("")
+        self.dlg.label_objets.setText(f"objets trouvés : -")
