@@ -253,14 +253,12 @@ class SpatialQueryTool:
 
             if "features" in data and len(data["features"]) > 0:
                 props = data["features"][0]["properties"]
-                num = props.get("housenumber", "N/A")
-                street_type = props.get("street_type", "")
-                street = props.get("street", "Rue inconnue")
-                insee = props.get("postcode", "N/A")  # Code INSEE
+                num_type_street = props.get("name", "N/A")
+                insee = props.get("citycode", "N/A")  # Code INSEE
                 city = props.get("city", "Ville inconnue")
 
-                # Build formatted address
-                address = f"{num} {street_type} {street}, {insee}, {city}"
+                # formatted address
+                address = f"{num_type_street}, {insee}, {city}"
                 return address
             else:
                 return "Adresse introuvable"
