@@ -42,9 +42,9 @@
   <widget class="QLabel" name="label_longitude">
    <property name="geometry">
     <rect>
-     <x>30</x>
+     <x>70</x>
      <y>130</y>
-     <width>161</width>
+     <width>111</width>
      <height>20</height>
     </rect>
    </property>
@@ -55,9 +55,9 @@
   <widget class="QLabel" name="label_latitude">
    <property name="geometry">
     <rect>
-     <x>250</x>
+     <x>260</x>
      <y>130</y>
-     <width>131</width>
+     <width>101</width>
      <height>20</height>
     </rect>
    </property>
@@ -94,14 +94,66 @@
   <widget class="QLabel" name="label_address">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>170</y>
-     <width>361</width>
+     <x>70</x>
+     <y>160</y>
+     <width>311</width>
      <height>16</height>
     </rect>
    </property>
    <property name="text">
     <string>Adresse: -</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_3">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>200</y>
+     <width>91</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Nombre d'objets:</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_4">
+   <property name="geometry">
+    <rect>
+     <x>70</x>
+     <y>230</y>
+     <width>331</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>à moins de  ----------          mètres du point cliqué</string>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="lineEdit_distance">
+   <property name="geometry">
+    <rect>
+     <x>130</x>
+     <y>230</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_objets">
+   <property name="geometry">
+    <rect>
+     <x>70</x>
+     <y>260</y>
+     <width>281</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>objets trouvés: -</string>
    </property>
   </widget>
  </widget>

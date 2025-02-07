@@ -24,8 +24,8 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform
-from qgis.gui import QgsMapToolEmitPoint
+from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry
+from qgis.gui import QgsMapToolEmitPoint, QgsMessageBar
 
 import requests
 
@@ -243,6 +243,38 @@ class SpatialQueryTool:
         address = self.get_address_from_api(lat, lon)
         self.dlg.label_address.setText(f"Adresse : {address}")
 
+
+        ### get the number of POI around the clicked point
+        distance_text = self.dlg.lineEdit_distance.text()
+        try:
+            # Verify that the input is a positive integer
+            distance = int(distance_text)
+            if distance <= 0:
+                raise ValueError
+        except ValueError:
+            # Displaying Error Messages in the QGIS Main Window
+            self.iface.messageBar().pushMessage(
+                "Erreur", "La distance doit être un entier positif.", level=2, duration=5)
+            return
+        
+        # Generate Buffer
+        buffer_geom = QgsGeometry.fromPointXY(transformed_point).buffer(distance, 10)
+
+        # Get selected layers
+        layer_name = self.dlg.comboBox.currentText()
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        layer = layers[0]
+
+        # Iterate over the layers and compute the intersection
+        count = 0
+        for feature in layer.getFeatures():
+            if feature.geometry().intersects(buffer_geom):
+                count += 1
+
+        self.dlg.label_objets.setText(f"objets trouvés : {count}")
+
+
+
     def get_address_from_api(self, lat, lon):
         """ Make a request to the GeoPlatform API to obtain the nearest address """
         url = f"https://data.geopf.fr/geocodage/reverse?lat={lat}&lon={lon}&type=housenumber&limit=1"
@@ -271,3 +303,5 @@ class SpatialQueryTool:
         self.dlg.label_longitude.setText("Longitude: -")
         self.dlg.label_latitude.setText("Latitude: -")
         self.dlg.label_address.setText("Adresse: -")
+        self.dlg.lineEdit_distance.setText("")
+        self.dlg.label_objets.setText(f"objets trouvés : -")
