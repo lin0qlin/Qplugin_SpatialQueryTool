@@ -22,10 +22,10 @@
  ***************************************************************************/
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry
-from qgis.gui import QgsMapToolEmitPoint, QgsMessageBar
+from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsGeometry, QgsFeature
+from qgis.gui import QgsMapToolEmitPoint
 
 import requests
 
@@ -243,8 +243,7 @@ class SpatialQueryTool:
         address = self.get_address_from_api(lat, lon)
         self.dlg.label_address.setText(f"Adresse : {address}")
 
-
-        ### get the number of POI around the clicked point
+        #============= get the number of POI around the clicked point =========================
         distance_text = self.dlg.lineEdit_distance.text()
         try:
             # Verify that the input is a positive integer
@@ -285,6 +284,60 @@ class SpatialQueryTool:
 
         self.dlg.label_objets.setText(f"objets trouvés : {count}")
 
+        #========================= Drawing Buffer ===================================
+        # Getting Temporary Layers
+        layer_name = "Buffer"
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        if not layers:
+            temp_layer = QgsVectorLayer("Polygon?crs=EPSG:3857", layer_name, "memory")
+            QgsProject.instance().addMapLayer(temp_layer)
+        else:
+            temp_layer = layers[0]
+
+        # Empty the elements in the layer
+        temp_layer.startEditing()
+        temp_layer.dataProvider().truncate()
+
+        # Adding new buffer features
+        feature = QgsFeature()
+        feature.setGeometry(buffer_geom)
+        temp_layer.dataProvider().addFeatures([feature])
+        temp_layer.commitChanges()
+
+        # Set the layer style
+        symbol = temp_layer.renderer().symbol()
+        symbol_layer = symbol.symbolLayer(0)
+        symbol_layer.setBrushStyle(0)  # transparent fill
+        symbol_layer.setStrokeColor(QColor("#000000"))  # black
+        symbol_layer.setStrokeWidth(0.3)  # broder width
+
+        # Display the buffer layer on the map
+        temp_layer.triggerRepaint()
+        
+        #====================== Drawing clicked point ===================================
+        # same as drawing buffer
+        point_layer_name = "Clicked_Point"
+        point_layers = QgsProject.instance().mapLayersByName(point_layer_name)
+
+        if not point_layers:
+            point_layer = QgsVectorLayer("Point?crs=EPSG:3857", point_layer_name, "memory")
+            QgsProject.instance().addMapLayer(point_layer)
+        else:
+            point_layer = point_layers[0]
+
+        point_layer.startEditing()
+        point_layer.dataProvider().truncate()
+
+        point_feature = QgsFeature()
+        point_feature.setGeometry(QgsGeometry.fromPointXY(point_3857))
+        point_layer.dataProvider().addFeatures([point_feature])
+        point_layer.commitChanges()
+
+        point_symbol = point_layer.renderer().symbol()
+        point_symbol.setColor(QColor("#FF0000"))  # red fill
+        point_symbol.symbolLayer(0).setStrokeWidth(0)  # no border
+
+        point_layer.triggerRepaint()
 
 
     def get_address_from_api(self, lat, lon):
